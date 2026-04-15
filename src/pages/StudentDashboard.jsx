@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import Sidebar from '../components/Sidebar'
+import DatePicker from '../components/DatePicker'
 import { useDashboardData } from '../lib/useDashboardData'
 import { useCurrentUser } from '../lib/useCurrentUser'
 import { studentDashboardFallback } from '../lib/dashboardData'
 import '../assets/dashboard.css'
 
 const DAILY_LOG_STORAGE_KEY = 'pf_student_daily_logs'
+const COMPLETED_TASKS_KEY = 'pf_student_completed_tasks'
+const DRIVE_FILES_KEY = 'pf_student_drive_files'
+const RESEARCH_TASKS_KEY = 'pf_student_research_tasks'
+const RESEARCH_LOGS_KEY = 'pf_student_research_logs'
+const TASK_COMMENTS_KEY = 'pf_student_task_comments'
+const NOTIFICATIONS_KEY = 'pf_student_notifications'
 
 function formatDateLabel(isoDate) {
   const date = new Date(`${isoDate}T00:00:00`)
@@ -24,25 +31,45 @@ function getStudentIdentity() {
 }
 
 const navItems = [
-  { icon: '⊞', label: 'Workspace' },
-  { icon: '📁', label: 'My Project' },
+  { icon: '📊', label: 'Dashboard' },
+  { icon: '�', label: 'Profile' },
+  { icon: '�📈', label: 'Analytics' },
   { icon: '✅', label: 'Tasks' },
+  { icon: '📋', label: 'Kanban' },
+  { icon: '📝', label: 'Research Log' },
+  { icon: '☁️', label: 'Repository' },
   { icon: '📤', label: 'Submissions' },
   { icon: '💬', label: 'Messages' },
-  { icon: '⚙️', label: 'Settings' },
 ]
 
 export default function StudentDashboard() {
   const currentUser = useCurrentUser()
   const dashboard = useDashboardData('student', studentDashboardFallback)
-  const [activeSection, setActiveSection] = useState('Workspace')
+  const [activeSection, setActiveSection] = useState('Dashboard')
   const todayIso = new Date().toISOString().slice(0, 10)
   const studentIdentity = getStudentIdentity()
   
   const displayName = currentUser?.name || dashboard.profile.name
   const displayEmail = currentUser?.email || ''
   const displayInitials = displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || dashboard.profile.initials
-  const displaySubtitle = displayEmail ? `${displayEmail}` : dashboard.profile.subtitle
+  const displaySubtitle = displayEmail ? displayEmail : currentUser?.role ? currentUser.role : dashboard.profile.subtitle
+
+  const loginStorageType = localStorage.getItem('pf_user') ? 'Remember Me (local)' : sessionStorage.getItem('pf_user') ? 'Session Only' : 'Not stored'
+  const loginMethod = currentUser?.provider || currentUser?.authMethod || 'Email & Password'
+
+  const profileDetails = {
+    name: displayName,
+    email: displayEmail || 'Not available',
+    role: currentUser?.role || dashboard.profile.role || 'Student',
+    subtitle: currentUser?.department ? `${currentUser.department}` : dashboard.profile.subtitle || 'Student',
+    department: currentUser?.department || dashboard.project.department || 'Research',
+    supervisor: dashboard.project.coordinator || 'Faculty Mentor',
+    project: dashboard.project.title || 'N/A',
+    deadline: dashboard.project.deadline || 'N/A',
+    phone: currentUser?.phone || 'Not available',
+    loginMethod,
+    sessionType: loginStorageType,
+  }
 
   const [dailyForm, setDailyForm] = useState({
     date: todayIso,
@@ -65,6 +92,177 @@ export default function StudentDashboard() {
     localStorage.setItem(`${DAILY_LOG_STORAGE_KEY}:${studentIdentity}`, JSON.stringify(dailyLogs))
   }, [dailyLogs, studentIdentity])
 
+  const [completedTasks, setCompletedTasks] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`${COMPLETED_TASKS_KEY}:${studentIdentity}`)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem(`${COMPLETED_TASKS_KEY}:${studentIdentity}`, JSON.stringify(completedTasks))
+  }, [completedTasks, studentIdentity])
+
+  function toggleTaskComplete(taskTitle) {
+    setCompletedTasks(prev => {
+      if (prev.includes(taskTitle)) {
+        return prev.filter(t => t !== taskTitle)
+      } else {
+        return [...prev, taskTitle]
+      }
+    })
+  }
+
+  const [driveFiles, setDriveFiles] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`${DRIVE_FILES_KEY}:${studentIdentity}`)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem(`${DRIVE_FILES_KEY}:${studentIdentity}`, JSON.stringify(driveFiles))
+  }, [driveFiles, studentIdentity])
+
+  const [driveForm, setDriveForm] = useState({
+    fileName: '',
+    fileType: 'github',
+    link: '',
+    description: '',
+  })
+
+  function addDriveFile(e) {
+    e.preventDefault()
+    if (!driveForm.fileName.trim() || !driveForm.link.trim()) {
+      alert('Please fill in file name and link')
+      return
+    }
+
+    const newFile = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ...driveForm,
+      createdAt: new Date().toISOString(),
+    }
+
+    setDriveFiles(prev => [newFile, ...prev])
+    setDriveForm({ fileName: '', fileType: 'github', link: '', description: '' })
+  }
+
+  function deleteDriveFile(fileId) {
+    setDriveFiles(prev => prev.filter(f => f.id !== fileId))
+  }
+
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`${NOTIFICATIONS_KEY}:${studentIdentity}`)
+      return raw ? JSON.parse(raw) : {
+        enableEmail: true,
+        enableInApp: true,
+        reminderFrequency: 'Daily',
+        milestoneAlerts: true,
+        submissionUpdates: true,
+      }
+    } catch {
+      return {
+        enableEmail: true,
+        enableInApp: true,
+        reminderFrequency: 'Daily',
+        milestoneAlerts: true,
+        submissionUpdates: true,
+      }
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem(`${NOTIFICATIONS_KEY}:${studentIdentity}`, JSON.stringify(notificationSettings))
+  }, [notificationSettings, studentIdentity])
+
+  function updateNotificationSetting(key, value) {
+    setNotificationSettings(prev => ({ ...prev, [key]: value }))
+  }
+
+  // Research Logs (Enhanced Daily Logs)
+  const [researchLogs, setResearchLogs] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`${RESEARCH_LOGS_KEY}:${studentIdentity}`)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem(`${RESEARCH_LOGS_KEY}:${studentIdentity}`, JSON.stringify(researchLogs))
+  }, [researchLogs, studentIdentity])
+
+  const [researchLogForm, setResearchLogForm] = useState({
+    date: todayIso,
+    taskTitle: '',
+    description: '',
+    hoursSpent: '',
+    progressPercentage: '',
+    status: 'ongoing',
+    issuesFaced: '',
+  })
+
+  function addResearchLog(e) {
+    e.preventDefault()
+    if (!researchLogForm.taskTitle.trim() || !researchLogForm.hoursSpent) {
+      alert('Please fill in task title and hours spent')
+      return
+    }
+
+    const hours = parseFloat(researchLogForm.hoursSpent)
+    if (isNaN(hours) || hours < 0) {
+      alert('Hours spent must be a valid positive number')
+      return
+    }
+
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      date: researchLogForm.date,
+      taskTitle: researchLogForm.taskTitle,
+      description: researchLogForm.description,
+      hoursSpent: hours,
+      progressPercentage: parseFloat(researchLogForm.progressPercentage) || 0,
+      status: researchLogForm.status,
+      issuesFaced: researchLogForm.issuesFaced,
+      createdAt: new Date().toISOString(),
+    }
+
+    setResearchLogs(prev => [entry, ...prev])
+    setResearchLogForm({
+      date: todayIso,
+      taskTitle: '',
+      description: '',
+      hoursSpent: '',
+      progressPercentage: '',
+      status: 'ongoing',
+      issuesFaced: '',
+    })
+  }
+
+  // Calculate research statistics
+  const researchStats = useMemo(() => {
+    const totalHours = researchLogs.reduce((sum, log) => sum + (log.hoursSpent || 0), 0)
+    const currentWeekLogs = researchLogs.filter(log => {
+      const logDate = new Date(log.date)
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      return logDate >= weekAgo
+    })
+    const weeklyHours = currentWeekLogs.reduce((sum, log) => sum + (log.hoursSpent || 0), 0)
+    const avgDailyProgress = researchLogs.length > 0 
+      ? (researchLogs.reduce((sum, log) => sum + (log.progressPercentage || 0), 0) / researchLogs.length) 
+      : 0
+
+    return { totalHours, weeklyHours, avgDailyProgress, totalSessions: researchLogs.length }
+  }, [researchLogs])
+
   const submissions = useMemo(
     () => [
       { title: 'Phase 1 Literature Review', status: 'Approved', date: 'Apr 05, 2026' },
@@ -81,16 +279,6 @@ export default function StudentDashboard() {
       { from: 'ProjectFlow', text: 'Reminder: Phase 2 report deadline is today.', when: 'Today, 8:00 AM' },
     ],
     [dashboard.project.coordinator]
-  )
-
-  const settings = useMemo(
-    () => [
-      { key: 'Notifications', value: 'Email + In-app' },
-      { key: 'Preferred Language', value: 'English' },
-      { key: 'Time Zone', value: 'Asia/Kolkata' },
-      { key: 'Theme', value: 'Light' },
-    ],
-    []
   )
 
   const completionInsights = useMemo(() => {
@@ -111,6 +299,13 @@ export default function StudentDashboard() {
       ? new Date(Date.now() + projectedDays * 24 * 60 * 60 * 1000)
       : null
 
+    const allDates = dailyLogs.map(log => log.date)
+    const firstLogDate = allDates.length ? new Date(Math.min(...allDates.map(d => new Date(`${d}T00:00:00`).getTime()))) : null
+    const totalSpanDays = firstLogDate
+      ? Math.max(1, Math.floor((Date.now() - firstLogDate.getTime()) / (24 * 60 * 60 * 1000)) + 1)
+      : 1
+    const consistency = totalSpanDays > 0 ? Math.round((uniqueActiveDays / totalSpanDays) * 100) : 0
+
     return {
       currentProgress,
       avgDailyGain,
@@ -119,6 +314,9 @@ export default function StudentDashboard() {
       projectedDate,
       missedCount,
       earlyDoneCount,
+      uniqueActiveDays,
+      totalSpanDays,
+      consistency,
     }
   }, [dailyLogs, dashboard.project.progress])
 
@@ -176,21 +374,27 @@ export default function StudentDashboard() {
   }
 
   const sectionTitleMap = {
-    Workspace: dashboard.header.title,
-    'My Project': 'My Project',
-    Tasks: 'My Tasks',
+    Dashboard: 'Research Overview',
+    Profile: 'My Profile',
+    Analytics: 'Progress Analytics',
+    Tasks: 'Research Tasks',
+    Kanban: 'Task Kanban Board',
+    'Research Log': 'Research Work Log',
+    Repository: 'Research Repository',
     Submissions: 'My Submissions',
     Messages: 'Messages',
-    Settings: 'Settings',
   }
 
   const sectionSubtitleMap = {
-    Workspace: dashboard.header.subtitle,
-    'My Project': `${dashboard.project.title} · ${dashboard.project.status}`,
-    Tasks: `${dashboard.tasks.length} tracked tasks`,
+    Dashboard: 'Project progress and activity overview',
+    Profile: 'View and manage your student profile details',
+    Analytics: 'Detailed progress, consistency, and projection metrics',
+    Tasks: `${dashboard.tasks.length} research tasks tracked`,
+    Kanban: 'Drag tasks across workflow stages',
+    'Research Log': `${dailyLogs.length} work sessions logged`,
+    Repository: `${driveFiles.length} files and resources`,
     Submissions: `${submissions.length} submission records`,
     Messages: `${messages.length} recent conversations`,
-    Settings: 'Manage your workspace preferences',
   }
 
   return (
@@ -230,20 +434,66 @@ export default function StudentDashboard() {
           ))}
         </section>
 
-        {activeSection === 'Workspace' && <div className="content-grid">
-          {/* Project Detail */}
+        {activeSection === 'Dashboard' && <div className="content-grid">
+          {/* Research KPIs */}
+          <section className="kpi-grid" style={{ gridColumn: 'span 2' }}>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: '#eef2ff', color: '#1a3faa' }}>📋</div>
+              <div className="kpi-body">
+                <span className="kpi-value">{dashboard.tasks.length}</span>
+                <span className="kpi-label">Total Tasks</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: '#dcfce7', color: '#15803d' }}>✓</div>
+              <div className="kpi-body">
+                <span className="kpi-value">{completedTasks.length}</span>
+                <span className="kpi-label">Completed</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: '#dbeafe', color: '#1e40af' }}>⟳</div>
+              <div className="kpi-body">
+                <span className="kpi-value">{dashboard.tasks.length - completedTasks.length}</span>
+                <span className="kpi-label">In Progress</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: '#fee2e2', color: '#dc2626' }}>🔔</div>
+              <div className="kpi-body">
+                <span className="kpi-value">2</span>
+                <span className="kpi-label">Due Today</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: '#fef9c3', color: '#92400e' }}>⏱️</div>
+              <div className="kpi-body">
+                <span className="kpi-value">{researchStats.weeklyHours.toFixed(1)}</span>
+                <span className="kpi-label">Hours This Week</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: '#e0f2fe', color: '#0369a1' }}>📊</div>
+              <div className="kpi-body">
+                <span className="kpi-value">{researchStats.avgDailyProgress.toFixed(0)}%</span>
+                <span className="kpi-label">Avg Progress</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Project Overview */}
           <div className="card wide-card">
             <div className="card-head">
-              <h2 className="card-title">My Project — {dashboard.project.title}</h2>
+              <h2 className="card-title">Research Project</h2>
               <span className="badge badge-green">{dashboard.project.status}</span>
             </div>
             <div className="proj-detail-wrap">
               <div className="proj-detail-left">
                 <p className="proj-desc-text">{dashboard.project.desc}</p>
                 <div className="proj-meta-grid">
-                  <div className="meta-item"><span className="meta-label">Coordinator</span><span className="meta-val">{dashboard.project.coordinator}</span></div>
-                  <div className="meta-item"><span className="meta-label">Deadline</span><span className="meta-val">{dashboard.project.deadline}</span></div>
-                  <div className="meta-item"><span className="meta-label">Team Size</span><span className="meta-val">{dashboard.project.teamSize}</span></div>
+                  <div className="meta-item"><span className="meta-label">Faculty Guide</span><span className="meta-val">{dashboard.project.coordinator}</span></div>
+                  <div className="meta-item"><span className="meta-label">Final Deadline</span><span className="meta-val">{dashboard.project.deadline}</span></div>
+                  <div className="meta-item"><span className="meta-label">Team Members</span><span className="meta-val">{dashboard.project.teamSize}</span></div>
                   <div className="meta-item"><span className="meta-label">Department</span><span className="meta-val">{dashboard.project.department}</span></div>
                 </div>
               </div>
@@ -251,204 +501,424 @@ export default function StudentDashboard() {
                 <span className="progress-label">Overall Progress</span>
                 <div className="big-progress"><div className="big-progress-fill" style={{ width: `${dashboard.project.progress}%` }}></div></div>
                 <span className="progress-pct">{dashboard.project.progress}%</span>
-                <div className="milestone-list">
-                  {dashboard.project.milestones.map((milestone, i) => (
-                    <div className={`milestone ${milestone.state}`} key={i}>
-                      {milestone.state === 'done' ? '✓' : milestone.state === 'active' ? '⟳' : '○'} {milestone.text}
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Tasks */}
-          <div className="card">
-            <div className="card-head"><h2 className="card-title">My Tasks</h2></div>
-            <ul className="task-list">
-              {dashboard.tasks.map((t, i) => (
-                <li className={`task-item ${t.cls}`} key={i}>
-                  <span className={`task-check ${t.checkCls}`}>{t.check}</span>
-                  <div>
-                    <strong>{t.title}</strong>
-                    <span className={`task-sub${t.urgent ? ' urgent' : ''}`}>{t.sub}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {/* Notification Settings */}
+          <div className="card wide-card notification-settings-card">
+            <div className="card-head"><h2 className="card-title">Notification Settings</h2></div>
+            <div className="notification-settings-grid">
+              <label className="setting-row">
+                <span>Email alerts</span>
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.enableEmail}
+                  onChange={e => updateNotificationSetting('enableEmail', e.target.checked)}
+                />
+              </label>
+
+              <label className="setting-row">
+                <span>In-app notifications</span>
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.enableInApp}
+                  onChange={e => updateNotificationSetting('enableInApp', e.target.checked)}
+                />
+              </label>
+
+              <label className="setting-row">
+                <span>Reminder frequency</span>
+                <select
+                  value={notificationSettings.reminderFrequency}
+                  onChange={e => updateNotificationSetting('reminderFrequency', e.target.value)}
+                >
+                  <option value="Daily">Daily</option>
+                  <option value="Weekly">Weekly</option>
+                  <option value="None">None</option>
+                </select>
+              </label>
+
+              <label className="setting-row">
+                <span>Milestone alerts</span>
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.milestoneAlerts}
+                  onChange={e => updateNotificationSetting('milestoneAlerts', e.target.checked)}
+                />
+              </label>
+
+              <label className="setting-row">
+                <span>Submission updates</span>
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.submissionUpdates}
+                  onChange={e => updateNotificationSetting('submissionUpdates', e.target.checked)}
+                />
+              </label>
+            </div>
           </div>
 
-          {/* Announcements */}
+          {/* Recent Activity */}
           <div className="card">
-            <div className="card-head"><h2 className="card-title">Announcements</h2></div>
+            <div className="card-head"><h2 className="card-title">Recent Activity</h2></div>
             <ul className="activity-list">
-              {dashboard.announcements.map((a, i) => (
+              {researchLogs.slice(0, 4).map((log, i) => (
                 <li className="activity-item" key={i}>
-                  <span className="act-dot" style={{ background: a.dot }}></span>
-                  <div>{a.text}</div>
-                  <span className="act-time">{a.time}</span>
+                  <span className="act-dot" style={{ background: '#1a3faa' }}></span>
+                  <div><strong>{log.taskTitle}</strong> · {log.hoursSpent}h logged</div>
+                  <span className="act-time">{new Date(log.date).toLocaleDateString()}</span>
                 </li>
               ))}
+              {researchLogs.length === 0 && <p className="empty-state">No activity yet</p>}
             </ul>
           </div>
+
+          {/* Milestones */}
+          <div className="card">
+            <div className="card-head"><h2 className="card-title">Milestones</h2></div>
+            <div className="milestone-list">
+              {dashboard.project.milestones.map((milestone, i) => (
+                <div className={`milestone ${milestone.state}`} key={i}>
+                  {milestone.state === 'done' ? '✓' : milestone.state === 'active' ? '⟳' : '○'} {milestone.text}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>}
 
-        {activeSection === 'My Project' && <div className="content-grid">
-          <div className="card wide-card">
-            <div className="card-head">
-              <h2 className="card-title">{dashboard.project.title}</h2>
-              <span className="badge badge-green">{dashboard.project.status}</span>
-            </div>
-            <div className="proj-detail-wrap">
-              <div className="proj-detail-left">
-                <p className="proj-desc-text">{dashboard.project.desc}</p>
-                <div className="proj-meta-grid">
-                  <div className="meta-item"><span className="meta-label">Coordinator</span><span className="meta-val">{dashboard.project.coordinator}</span></div>
-                  <div className="meta-item"><span className="meta-label">Deadline</span><span className="meta-val">{dashboard.project.deadline}</span></div>
-                  <div className="meta-item"><span className="meta-label">Team Size</span><span className="meta-val">{dashboard.project.teamSize}</span></div>
-                  <div className="meta-item"><span className="meta-label">Department</span><span className="meta-val">{dashboard.project.department}</span></div>
+        {activeSection === 'Profile' && <div className="content-grid">
+          <div className="card wide-card profile-card">
+            <div className="card-head"><h2 className="card-title">My Profile</h2></div>
+            <div className="profile-grid">
+              <div className="profile-avatar-card">
+                <div className="profile-avatar">{displayInitials}</div>
+                <div className="profile-name-group">
+                  <h3>{profileDetails.name}</h3>
+                  <p className="profile-role">{profileDetails.role}</p>
                 </div>
               </div>
-              <div className="proj-detail-right">
-                <span className="progress-label">Overall Progress</span>
-                <div className="big-progress"><div className="big-progress-fill" style={{ width: `${dashboard.project.progress}%` }}></div></div>
-                <span className="progress-pct">{dashboard.project.progress}%</span>
-                <div className="milestone-list">
-                  {dashboard.project.milestones.map((milestone, i) => (
-                    <div className={`milestone ${milestone.state}`} key={i}>
-                      {milestone.state === 'done' ? '✓' : milestone.state === 'active' ? '⟳' : '○'} {milestone.text}
-                    </div>
-                  ))}
-                </div>
+              <div className="profile-info-grid">
+                <div className="profile-info-item"><span>Email</span><strong>{profileDetails.email}</strong></div>
+                <div className="profile-info-item"><span>Project</span><strong>{profileDetails.project}</strong></div>
+                <div className="profile-info-item"><span>Department</span><strong>{profileDetails.department}</strong></div>
+                <div className="profile-info-item"><span>Supervisor</span><strong>{profileDetails.supervisor}</strong></div>
+                <div className="profile-info-item"><span>Student Status</span><strong>{profileDetails.subtitle}</strong></div>
+                <div className="profile-info-item"><span>Deadline</span><strong>{profileDetails.deadline}</strong></div>
+                <div className="profile-info-item"><span>Login Method</span><strong>{profileDetails.loginMethod}</strong></div>
+                <div className="profile-info-item"><span>Session Type</span><strong>{profileDetails.sessionType}</strong></div>
+                <div className="profile-info-item"><span>Phone</span><strong>{profileDetails.phone}</strong></div>
               </div>
             </div>
           </div>
         </div>}
 
-        {activeSection === 'Tasks' && <div className="content-grid">
+        {activeSection === 'Analytics' && <div className="content-grid">
           <div className="card wide-card">
-            <div className="card-head"><h2 className="card-title">Daily Work Update</h2></div>
+            <div className="card-head"><h2 className="card-title">My Tasks</h2></div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Task Title</th>
+                  <th>Details</th>
+                  <th>Priority</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.tasks.map((t, i) => {
+                  const isCompleted = completedTasks.includes(t.title)
+                  return (
+                    <tr key={i} style={{ opacity: isCompleted ? 0.6 : 1 }}>
+                      <td>
+                        <span className={`badge ${isCompleted ? 'badge-green' : t.cls === 'done' ? 'badge-green' : t.cls === 'active' ? 'badge-blue' : 'badge-gray'}`}>
+                          {isCompleted ? 'Marked Done' : t.cls === 'done' ? 'Completed' : t.cls === 'active' ? 'In Progress' : 'To Do'}
+                        </span>
+                      </td>
+                      <td><strong style={{ textDecoration: isCompleted ? 'line-through' : 'none' }}>{t.title}</strong></td>
+                      <td style={{ textDecoration: isCompleted ? 'line-through' : 'none' }}>{t.sub}</td>
+                      <td>{t.urgent ? <span className="badge badge-red">Urgent</span> : <span className="badge badge-gray">Normal</span>}</td>
+                      <td>
+                        <button
+                          className={`btn-task-action ${isCompleted ? 'btn-undo' : 'btn-complete'}`}
+                          onClick={() => toggleTaskComplete(t.title)}
+                          title={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+                        >
+                          {isCompleted ? '↶ Undo' : '✓ Complete'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>}
 
-            <form className="daily-log-form" onSubmit={submitDailyLog}>
-              <div className="daily-form-grid">
+        {activeSection === 'Kanban' && <div className="content-grid">
+          <div className="card wide-card" style={{ gridColumn: 'span 3' }}>
+            <div className="card-head"><h2 className="card-title">Research Task Workflow</h2></div>
+            <div className="kanban-board">
+              <div className="kanban-column">
+                <div className="kanban-column-head">To Do</div>
+                {dashboard.tasks.filter(t => t.cls === 'todo').map((t, i) => (
+                  <div key={i} className="kanban-card">
+                    <div className="kanban-card-title">{t.title}</div>
+                    <span className={`badge ${t.urgent ? 'badge-red' : 'badge-gray'}`}>{t.urgent ? 'Urgent' : 'Normal'}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="kanban-column">
+                <div className="kanban-column-head">In Progress</div>
+                {dashboard.tasks.filter(t => t.cls === 'active').map((t, i) => (
+                  <div key={i} className="kanban-card kanban-card-active">
+                    <div className="kanban-card-title">{t.title}</div>
+                    <span className="badge badge-blue">In Progress</span>
+                  </div>
+                ))}
+              </div>
+              <div className="kanban-column">
+                <div className="kanban-column-head">Under Review</div>
+                <div className="kanban-card kanban-card-review">
+                  <div className="kanban-card-title">Phase 2 Report</div>
+                  <span className="badge badge-amber">Pending Review</span>
+                </div>
+              </div>
+              <div className="kanban-column">
+                <div className="kanban-column-head">Completed</div>
+                {dashboard.tasks.filter(t => t.cls === 'done' || completedTasks.includes(t.title)).map((t, i) => (
+                  <div key={i} className="kanban-card kanban-card-done">
+                    <div className="kanban-card-title">{t.title}</div>
+                    <span className="badge badge-green">✓ Done</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>}
+
+        {activeSection === 'Research Log' && <div className="content-grid">
+          <div className="card wide-card">
+            <div className="card-head"><h2 className="card-title">Log Research Work Session</h2></div>
+
+            <form className="research-log-form" onSubmit={addResearchLog}>
+              <div className="research-form-grid">
                 <label>
                   Date
-                  <input type="date" value={dailyForm.date} onChange={e => updateDailyForm('date', e.target.value)} />
-                </label>
-
-                <label>
-                  Task / Work item
-                  <input
-                    type="text"
-                    placeholder="Example: Phase 2 report section"
-                    value={dailyForm.taskTitle}
-                    onChange={e => updateDailyForm('taskTitle', e.target.value)}
+                  <DatePicker 
+                    value={researchLogForm.date} 
+                    onChange={e => setResearchLogForm(prev => ({ ...prev, date: e }))} 
                   />
                 </label>
 
                 <label>
-                  Daily status
-                  <select value={dailyForm.status} onChange={e => updateDailyForm('status', e.target.value)}>
-                    <option value="completed_on_time">Completed as planned</option>
-                    <option value="not_done">Not done today</option>
-                    <option value="finished_early">Finished before planned time</option>
-                  </select>
+                  Task Worked On
+                  <input
+                    type="text"
+                    placeholder="e.g., Model Development, Data Analysis"
+                    value={researchLogForm.taskTitle}
+                    onChange={e => setResearchLogForm(prev => ({ ...prev, taskTitle: e.target.value }))}
+                  />
                 </label>
 
                 <label>
-                  Progress gain (%)
+                  Hours Spent
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    placeholder="e.g., 2.5"
+                    value={researchLogForm.hoursSpent}
+                    onChange={e => setResearchLogForm(prev => ({ ...prev, hoursSpent: e.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  Progress (%)
                   <input
                     type="number"
                     min="0"
                     max="100"
-                    placeholder="0"
-                    value={dailyForm.progressGain}
-                    onChange={e => updateDailyForm('progressGain', e.target.value)}
+                    placeholder="0-100"
+                    value={researchLogForm.progressPercentage}
+                    onChange={e => setResearchLogForm(prev => ({ ...prev, progressPercentage: e.target.value }))}
                   />
                 </label>
               </div>
 
-              <label className="daily-reason-field">
-                Reason {dailyForm.status === 'not_done' || dailyForm.status === 'finished_early' ? '(Required)' : '(Optional)'}
+              <label>
+                Work Description
                 <textarea
                   rows="2"
-                  placeholder="Provide reason when not done today or finished early"
-                  value={dailyForm.reason}
-                  onChange={e => updateDailyForm('reason', e.target.value)}
+                  placeholder="Describe what you worked on today..."
+                  value={researchLogForm.description}
+                  onChange={e => setResearchLogForm(prev => ({ ...prev, description: e.target.value }))}
                 />
               </label>
 
-              {dailyFormError && <p className="daily-form-error">{dailyFormError}</p>}
+              <label>
+                Session Status
+                <select 
+                  value={researchLogForm.status}
+                  onChange={e => setResearchLogForm(prev => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="ongoing">Ongoing</option>
+                  <option value="completed">Completed</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </label>
 
-              <div className="daily-form-actions">
-                <button type="submit" className="btn-primary">Save Daily Update</button>
+              <label>
+                Issues Faced (Optional)
+                <textarea
+                  rows="2"
+                  placeholder="Any blockers or challenges..."
+                  value={researchLogForm.issuesFaced}
+                  onChange={e => setResearchLogForm(prev => ({ ...prev, issuesFaced: e.target.value }))}
+                />
+              </label>
+
+              <div className="research-form-actions">
+                <button type="submit" className="btn-primary">Log Session</button>
               </div>
             </form>
           </div>
 
+          {/* Research Statistics */}
           <div className="card">
-            <div className="card-head"><h2 className="card-title">Completion Loop</h2></div>
+            <div className="card-head"><h2 className="card-title">Research Statistics</h2></div>
             <div className="completion-loop">
-              <div className="loop-row"><span>Current progress</span><strong>{completionInsights.currentProgress.toFixed(1)}%</strong></div>
-              <div className="loop-row"><span>Average daily gain</span><strong>{completionInsights.avgDailyGain.toFixed(2)}% / day</strong></div>
-              <div className="loop-row"><span>Pending progress</span><strong>{completionInsights.remainingProgress.toFixed(1)}%</strong></div>
-              <div className="loop-row"><span>Days missed</span><strong>{completionInsights.missedCount}</strong></div>
-              <div className="loop-row"><span>Early finishes</span><strong>{completionInsights.earlyDoneCount}</strong></div>
-              <div className="loop-row">
-                <span>Estimated completion day</span>
-                <strong>
-                  {completionInsights.projectedDate
-                    ? completionInsights.projectedDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : 'Need daily progress data'}
-                </strong>
-              </div>
+              <div className="loop-row"><span>Total Hours</span><strong>{researchStats.totalHours.toFixed(1)}h</strong></div>
+              <div className="loop-row"><span>This Week</span><strong>{researchStats.weeklyHours.toFixed(1)}h</strong></div>
+              <div className="loop-row"><span>Total Sessions</span><strong>{researchStats.totalSessions}</strong></div>
+              <div className="loop-row"><span>Avg Progress</span><strong>{researchStats.avgDailyProgress.toFixed(0)}%</strong></div>
             </div>
           </div>
 
           <div className="card wide-card">
-            <div className="card-head"><h2 className="card-title">Daily Update History</h2></div>
-            {dailyLogs.length === 0 && <p className="empty-state">No daily updates yet. Add today\'s update to start tracking completion day.</p>}
-            {dailyLogs.length > 0 && <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Task</th>
-                  <th>Status</th>
-                  <th>Gain</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyLogs.map(log => (
-                  <tr key={log.id}>
-                    <td>{formatDateLabel(log.date)}</td>
-                    <td>{log.taskTitle}</td>
-                    <td>
-                      <span className={`badge ${log.status === 'not_done' ? 'badge-red' : log.status === 'finished_early' ? 'badge-amber' : 'badge-green'}`}>
-                        {log.status === 'completed_on_time' ? 'Completed' : log.status === 'not_done' ? 'Not done' : 'Finished early'}
-                      </span>
-                    </td>
-                    <td>{Number(log.progressGain).toFixed(1)}%</td>
-                    <td>{log.reason || '-'}</td>
+            <div className="card-head"><h2 className="card-title">Research Session History</h2></div>
+            {researchLogs.length === 0 ? (
+              <p className="empty-state">No research sessions logged yet.</p>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Task</th>
+                    <th>Hours</th>
+                    <th>Progress</th>
+                    <th>Status</th>
+                    <th>Issues</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>}
+                </thead>
+                <tbody>
+                  {researchLogs.map(log => (
+                    <tr key={log.id}>
+                      <td>{new Date(log.date).toLocaleDateString()}</td>
+                      <td><strong>{log.taskTitle}</strong></td>
+                      <td>{log.hoursSpent}h</td>
+                      <td>{log.progressPercentage}%</td>
+                      <td>
+                        <span className={`badge ${log.status === 'completed' ? 'badge-green' : log.status === 'blocked' ? 'badge-red' : 'badge-blue'}`}>
+                          {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                        </span>
+                      </td>
+                      <td>{log.issuesFaced ? '⚠️' : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>}
+
+        {activeSection === 'Repository' && <div className="content-grid">
+          <div className="card wide-card">
+            <div className="card-head"><h2 className="card-title">Add Research Resource</h2></div>
+            <form onSubmit={addDriveFile} className="drive-form">
+              <div className="drive-form-grid">
+                <label>
+                  Resource Name
+                  <input
+                    type="text"
+                    placeholder="e.g., Healthcare AI GitHub Repo, Paper Reference"
+                    value={driveForm.fileName}
+                    onChange={e => setDriveForm(prev => ({ ...prev, fileName: e.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  Resource Type
+                  <select
+                    value={driveForm.fileType}
+                    onChange={e => setDriveForm(prev => ({ ...prev, fileType: e.target.value }))}
+                  >
+                    <option value="github">GitHub Repository</option>
+                    <option value="video">Research Video</option>
+                    <option value="screenshot">Experiment Screenshot</option>
+                    <option value="document">Research Paper / Report</option>
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                Link / URL
+                <input
+                  type="url"
+                  placeholder="https://github.com/... or research paper URL"
+                  value={driveForm.link}
+                  onChange={e => setDriveForm(prev => ({ ...prev, link: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Notes (Optional)
+                <textarea
+                  rows="2"
+                  placeholder="Purpose, findings, or relevance to your research..."
+                  value={driveForm.description}
+                  onChange={e => setDriveForm(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </label>
+
+              <button type="submit" className="btn-primary">Add Resource</button>
+            </form>
           </div>
 
           <div className="card wide-card">
-            <div className="card-head"><h2 className="card-title">My Tasks</h2></div>
-            <ul className="task-list">
-              {dashboard.tasks.map((t, i) => (
-                <li className={`task-item ${t.cls}`} key={i}>
-                  <span className={`task-check ${t.checkCls}`}>{t.check}</span>
-                  <div>
-                    <strong>{t.title}</strong>
-                    <span className={`task-sub${t.urgent ? ' urgent' : ''}`}>{t.sub}</span>
+            <div className="card-head"><h2 className="card-title">Research Resources</h2></div>
+            {driveFiles.length === 0 ? (
+              <p className="empty-state">No resources added yet. Build your research library by adding GitHub links, papers, videos, and screenshots.</p>
+            ) : (
+              <div className="drive-files-grid">
+                {driveFiles.map(file => (
+                  <div key={file.id} className="drive-file-card">
+                    <div className="drive-file-icon">
+                      {file.fileType === 'github' && '🐙'}
+                      {file.fileType === 'video' && '🎬'}
+                      {file.fileType === 'screenshot' && '📊'}
+                      {file.fileType === 'document' && '📚'}
+                    </div>
+                    <div className="drive-file-info">
+                      <h3>{file.fileName}</h3>
+                      <span className="drive-file-type">{file.fileType.charAt(0).toUpperCase() + file.fileType.slice(1)}</span>
+                      {file.description && <p className="drive-file-desc">{file.description}</p>}
+                      <a href={file.link} target="_blank" rel="noopener noreferrer" className="drive-file-link">
+                        Access Resource →
+                      </a>
+                    </div>
+                    <button
+                      onClick={() => deleteDriveFile(file.id)}
+                      className="btn-delete"
+                      title="Delete resource"
+                    >
+                      ✕
+                    </button>
                   </div>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            )}
           </div>
         </div>}
 
@@ -492,28 +962,6 @@ export default function StudentDashboard() {
                 </li>
               ))}
             </ul>
-          </div>
-        </div>}
-
-        {activeSection === 'Settings' && <div className="content-grid">
-          <div className="card wide-card">
-            <div className="card-head"><h2 className="card-title">Profile Settings</h2></div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Setting</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {settings.map((item, i) => (
-                  <tr key={i}>
-                    <td>{item.key}</td>
-                    <td>{item.value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>}
       </main>
