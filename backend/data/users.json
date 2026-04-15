@@ -1,0 +1,38 @@
+[
+  {
+    "id": "seed-director",
+    "name": "Dr. Rajesh Mehta",
+    "email": "director@pf.com",
+    "password": "Admin@123",
+    "role": "director",
+    "department": "Administration",
+    "phone": "9000000001"
+  },
+  {
+    "id": "seed-coordinator",
+    "name": "Dr. Priya Sharma",
+    "email": "coord@pf.com",
+    "password": "Coord@123",
+    "role": "coordinator",
+    "department": "Computer Science",
+    "phone": "9000000002"
+  },
+  {
+    "id": "seed-student",
+    "name": "Aanya Singh",
+    "email": "student@pf.com",
+    "password": "Student@123",
+    "role": "student",
+    "department": "Computer Science",
+    "phone": "9000000003"
+  },
+  {
+    "id": "4f9aea08-c6ed-467d-82a6-71df8fc091e0",
+    "name": "Subhiksha",
+    "email": "subhiksha254@gmail.com",
+    "password": "123456",
+    "role": "student",
+    "department": "AIADS",
+    "phone": "1234567890"
+  }
+]
