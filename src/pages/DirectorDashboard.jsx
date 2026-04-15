@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import Sidebar from '../components/Sidebar'
 import { useDashboardData } from '../lib/useDashboardData'
+import { useCurrentUser } from '../lib/useCurrentUser'
 import { directorDashboardFallback } from '../lib/dashboardData'
 import '../assets/dashboard.css'
 
@@ -13,15 +15,21 @@ const navItems = [
 ]
 
 export default function DirectorDashboard() {
+  const currentUser = useCurrentUser()
   const dashboard = useDashboardData('director', directorDashboardFallback)
+  
+  const displayName = currentUser?.name || dashboard.profile.name
+  const displayEmail = currentUser?.email || ''
+  const displayInitials = displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || dashboard.profile.initials
+  const displaySubtitle = displayEmail ? `${displayEmail}` : dashboard.profile.subtitle
 
   return (
     <div data-role="director" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar
         role={dashboard.profile.role}
-        userName={dashboard.profile.name}
-        userInitials={dashboard.profile.initials}
-        userSub={dashboard.profile.subtitle}
+        userName={displayName}
+        userInitials={displayInitials}
+        userSub={displaySubtitle}
         navItems={navItems}
       />
 
